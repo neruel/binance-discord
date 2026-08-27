@@ -50,6 +50,9 @@ def test_korean_search_queries():
         ("리플", "XRPUSDT", 1),
         ("솔라나", "SOLUSDT", 1),
         ("도지코인", "DOGEUSDT", 1),
+        ("QQQ", "QQQ", 1),
+        ("SPY", "SPY", 1),
+        ("삼성전자", "삼성전자", 1),
         ("SK", None, 2),  # Expect >= 2 multi-results
         ("존재하지않는종목123", None, 0)  # Expect 0 results
     ]

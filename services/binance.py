@@ -66,6 +66,80 @@ PRESET_ASSETS = [
         "yahoo_symbol": "MSFT",
         "keywords": ["마이크로소프트", "마소", "msft", "msftbusdt"]
     },
+    # Popular US ETFs & Stocks
+    {
+        "symbol": "QQQ",
+        "display": "QQQ",
+        "name": "Invesco QQQ Trust",
+        "korean_name": "QQQ (나스닥 100 ETF)",
+        "market_type": "Stock / ETF",
+        "yahoo_symbol": "QQQ",
+        "keywords": ["qqq", "큐큐큐", "나스닥", "나스닥100"]
+    },
+    {
+        "symbol": "SPY",
+        "display": "SPY",
+        "name": "SPDR S&P 500 ETF",
+        "korean_name": "SPY (S&P 500 ETF)",
+        "market_type": "Stock / ETF",
+        "yahoo_symbol": "SPY",
+        "keywords": ["spy", "스파이", "s&p500", "snp500"]
+    },
+    {
+        "symbol": "TQQQ",
+        "display": "TQQQ",
+        "name": "ProShares UltraPro QQQ",
+        "korean_name": "TQQQ (나스닥 3배 레버리지)",
+        "market_type": "Stock / ETF",
+        "yahoo_symbol": "TQQQ",
+        "keywords": ["tqqq", "티큐", "티큐큐큐"]
+    },
+    {
+        "symbol": "SOXL",
+        "display": "SOXL",
+        "name": "Direxion Daily Semiconductor Bull 3X",
+        "korean_name": "SOXL (반도체 3배 레버리지)",
+        "market_type": "Stock / ETF",
+        "yahoo_symbol": "SOXL",
+        "keywords": ["soxl", "속슬"]
+    },
+    {
+        "symbol": "SOXX",
+        "display": "SOXX",
+        "name": "iShares Semiconductor ETF",
+        "korean_name": "SOXX (반도체 ETF)",
+        "market_type": "Stock / ETF",
+        "yahoo_symbol": "SOXX",
+        "keywords": ["soxx", "속스"]
+    },
+    {
+        "symbol": "AMD",
+        "display": "AMD",
+        "name": "Advanced Micro Devices",
+        "korean_name": "AMD (아남드)",
+        "market_type": "Stock",
+        "yahoo_symbol": "AMD",
+        "keywords": ["amd", "아남드"]
+    },
+    {
+        "symbol": "PLTR",
+        "display": "PLTR",
+        "name": "Palantir Technologies",
+        "korean_name": "팔란티어",
+        "market_type": "Stock",
+        "yahoo_symbol": "PLTR",
+        "keywords": ["pltr", "팔란티어"]
+    },
+    {
+        "symbol": "삼성전자",
+        "display": "삼성전자",
+        "name": "Samsung Electronics",
+        "korean_name": "삼성전자",
+        "market_type": "Stock (국내)",
+        "yahoo_symbol": "005930.KS",
+        "keywords": ["삼성전자", "삼전", "005930"]
+    },
+    # Crypto presets
     {
         "symbol": "BTCUSDT",
         "display": "BTC",
@@ -150,8 +224,7 @@ class BinanceAPI:
                     volume = float(meta.get("regularMarketVolume", 0))
                     currency = meta.get("currency", "USD")
 
-                    # If price is in KRW (like SK Hynix 000660.KS), calculate exchange rate or convert to approx USDT
-                    # 1 USDT ≈ 1350 KRW
+                    # If price is in KRW (like SK Hynix 000660.KS or Samsung 005930.KS), convert to approx USDT (1350 KRW/USD)
                     if currency == "KRW" and price > 5000:
                         price = price / 1350.0
                         prev_close = prev_close / 1350.0
@@ -180,7 +253,6 @@ class BinanceAPI:
                 res = self.session.get(url, params=params, timeout=4)
                 if res.status_code == 200:
                     data = res.json()
-                    # If endpoint returned array (like /ticker/24hr without symbol), filter or return
                     if isinstance(data, list) and params and "symbol" in params:
                         target = params["symbol"]
                         match = next((item for item in data if item.get("symbol") == target), None)
@@ -210,17 +282,22 @@ class BinanceAPI:
 
     def get_symbol_price(self, symbol: str) -> Optional[Dict]:
         """Get the latest price for a symbol."""
-        # First try Binance endpoints
+        # 1. Try Binance endpoints
         data = self._make_binance_request("/ticker/price", {"symbol": symbol})
         if data and "price" in data:
             return data
 
-        # Check preset assets for Yahoo Finance fallback
+        # 2. Check preset assets for Yahoo Finance fallback
         for preset in PRESET_ASSETS:
             if preset["symbol"] == symbol and "yahoo_symbol" in preset:
                 yf_data = self._fetch_yahoo_finance(preset["yahoo_symbol"])
                 if yf_data:
                     return {"symbol": symbol, "price": yf_data["lastPrice"]}
+
+        # 3. Dynamic Yahoo Finance lookup
+        yf_data = self._fetch_yahoo_finance(symbol)
+        if yf_data:
+            return {"symbol": symbol, "price": yf_data["lastPrice"]}
 
         return None
 
@@ -239,7 +316,13 @@ class BinanceAPI:
                     yf_data["symbol"] = symbol
                     return yf_data
 
-        # 3. Fallback to simple price lookup
+        # 3. Dynamic Yahoo Finance lookup
+        yf_data = self._fetch_yahoo_finance(symbol)
+        if yf_data:
+            yf_data["symbol"] = symbol
+            return yf_data
+
+        # 4. Fallback to simple price lookup
         price_data = self.get_symbol_price(symbol)
         if price_data and "price" in price_data:
             price = price_data["price"]
@@ -338,6 +421,21 @@ class BinanceAPI:
                     seen_symbols.add(sym)
         except Exception as e:
             logger.warning(f"Error during dynamic exchange search: {e}")
+
+        # Step 3: Dynamic fallback lookup on Yahoo Finance for ANY stock/ETF ticker (e.g. QQQ, SPY, AMD, SOXX)
+        if not matched_assets:
+            u_q = q.upper()
+            yf_test = self._fetch_yahoo_finance(u_q)
+            if yf_test:
+                matched_assets.append({
+                    "symbol": u_q,
+                    "display": u_q,
+                    "name": u_q,
+                    "korean_name": f"{u_q} (미국 주식 / ETF)",
+                    "market_type": "Stock / ETF",
+                    "priority": 1
+                })
+                seen_symbols.add(u_q)
 
         # Sort by priority score (lowest priority number first)
         matched_assets.sort(key=lambda x: x["priority"])
