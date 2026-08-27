@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Test script to verify command setup
+Test script to verify slash command registration and handlers
 """
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Mock discord objects to avoid needing a real connection
-class MockInteraction:
-    pass
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 class MockCommandTree:
     def __init__(self):
@@ -16,32 +16,33 @@ class MockCommandTree:
 
     def command(self, name=None, description=None):
         def decorator(func):
-            self.commands.append((name or func.__name__, description, func))
+            cmd_name = name or func.__name__
+            self.commands.append((cmd_name, description, func))
             return func
         return decorator
 
 def test_setup_commands():
-    print("Testing command setup...")
+    print("Testing slash command setup...")
     try:
         from bot.commands import setup_commands
-        # Create a mock tree
         tree = MockCommandTree()
-        # Call setup_commands
         setup_commands(tree)
-        print(f"   Found {len(tree.commands)} commands")
-        for name, desc, func in tree.commands:
-            print(f"   - {name}: {desc}")
-        # Check that we have the market command
-        market_cmd = [c for c in tree.commands if c[0] == 'market']
-        if market_cmd:
-            print("   � ✓ 'market' command found")
-        else:
-            print("   � ✗ 'market' command missing")
-            return False
-        print("   All command tests passed!")
+
+        registered_names = [c[0] for c in tree.commands]
+        print(f"   Registered commands ({len(registered_names)}): {registered_names}")
+
+        required_commands = ["시세검색", "search", "market"]
+        for req in required_commands:
+            if req in registered_names:
+                print(f"   [OK] Command '/{req}' is registered successfully")
+            else:
+                print(f"   [FAIL] Required command '/{req}' missing!")
+                return False
+
+        print("\nAll command registration tests PASSED!")
         return True
     except Exception as e:
-        print(f"   Error: {e}")
+        print(f"   Error during command setup test: {e}")
         import traceback
         traceback.print_exc()
         return False
