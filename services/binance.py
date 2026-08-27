@@ -10,13 +10,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# List of Binance API endpoints (including data-api.binance.vision for US/Cloud server IP compatibility)
+# List of Binance API endpoints (www.binance.com avoids Cloudflare HTTP 418 bans on Cloud Datacenter IPs like Render)
 BASE_URLS = [
-    "https://data-api.binance.vision",
+    "https://www.binance.com",
     "https://api.binance.com",
     "https://api1.binance.com",
     "https://api2.binance.com",
-    "https://api3.binance.com"
+    "https://api3.binance.com",
+    "https://data-api.binance.vision"
 ]
 
 # Preset assets with Korean names, display tickers, and search keywords
@@ -116,7 +117,9 @@ class BinanceAPI:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9"
         })
         if BINANCE_API_KEY:
             self.session.headers.update({
@@ -127,7 +130,7 @@ class BinanceAPI:
         self._cache_ttl = 300  # 5 minutes
 
     def _make_request(self, path: str, params: Optional[Dict] = None) -> Optional[Dict]:
-        """Make HTTP GET request across multiple Binance mirror endpoints to bypass cloud IP blocks."""
+        """Make HTTP GET request across multiple Binance mirror endpoints to bypass Cloudflare 418 bans."""
         for base_url in BASE_URLS:
             url = f"{base_url}{path}"
             try:
