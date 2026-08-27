@@ -10,7 +10,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://api.binance.com"
+# List of Binance API endpoints (including data-api.binance.vision for US/Cloud server IP compatibility)
+BASE_URLS = [
+    "https://data-api.binance.vision",
+    "https://api.binance.com",
+    "https://api1.binance.com",
+    "https://api2.binance.com",
+    "https://api3.binance.com"
+]
 
 # Preset assets with Korean names, display tickers, and search keywords
 PRESET_ASSETS = [
@@ -108,6 +115,9 @@ PRESET_ASSETS = [
 class BinanceAPI:
     def __init__(self):
         self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
         if BINANCE_API_KEY:
             self.session.headers.update({
                 "X-MBX-APIKEY": BINANCE_API_KEY
@@ -116,48 +126,59 @@ class BinanceAPI:
         self._cache_time = 0
         self._cache_ttl = 300  # 5 minutes
 
+    def _make_request(self, path: str, params: Optional[Dict] = None) -> Optional[Dict]:
+        """Make HTTP GET request across multiple Binance mirror endpoints to bypass cloud IP blocks."""
+        for base_url in BASE_URLS:
+            url = f"{base_url}{path}"
+            try:
+                res = self.session.get(url, params=params, timeout=5)
+                if res.status_code == 200:
+                    return res.json()
+                else:
+                    logger.warning(f"Endpoint {url} returned HTTP {res.status_code}")
+            except Exception as e:
+                logger.warning(f"Error fetching from {url}: {e}")
+        return None
+
     def get_exchange_info(self, force_refresh: bool = False) -> Dict:
         """Get exchange information with in-memory caching."""
         now = time.time()
         if not force_refresh and self._exchange_info_cache and (now - self._cache_time < self._cache_ttl):
             return self._exchange_info_cache
 
-        endpoint = f"{BASE_URL}/api/v3/exchangeInfo"
-        try:
-            response = self.session.get(endpoint, timeout=10)
-            response.raise_for_status()
-            self._exchange_info_cache = response.json()
+        data = self._make_request("/api/v3/exchangeInfo")
+        if data:
+            self._exchange_info_cache = data
             self._cache_time = now
+            return data
+
+        if self._exchange_info_cache:
             return self._exchange_info_cache
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch exchange info: {e}")
-            if self._exchange_info_cache:
-                return self._exchange_info_cache
-            raise
+        return {"symbols": []}
 
     def get_symbol_price(self, symbol: str) -> Optional[Dict]:
         """Get the latest price for a symbol."""
-        endpoint = f"{BASE_URL}/api/v3/ticker/price"
-        params = {"symbol": symbol}
-        try:
-            response = self.session.get(endpoint, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            logger.error(f"Failed to get price for {symbol}: {e}")
-            return None
+        return self._make_request("/api/v3/ticker/price", {"symbol": symbol})
 
     def get_24hr_ticker(self, symbol: str) -> Optional[Dict]:
-        """Get 24hr ticker price change statistics for a single symbol."""
-        endpoint = f"{BASE_URL}/api/v3/ticker/24hr"
-        params = {"symbol": symbol}
-        try:
-            response = self.session.get(endpoint, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            logger.error(f"Failed to get 24hr ticker for {symbol}: {e}")
-            return None
+        """Get 24hr ticker price change statistics with fallback to simple price lookup."""
+        data = self._make_request("/api/v3/ticker/24hr", {"symbol": symbol})
+        if data and "lastPrice" in data:
+            return data
+
+        # Fallback to simple price lookup if 24hr ticker fails
+        price_data = self.get_symbol_price(symbol)
+        if price_data and "price" in price_data:
+            price = price_data["price"]
+            return {
+                "symbol": symbol,
+                "lastPrice": price,
+                "priceChangePercent": "0.00",
+                "highPrice": price,
+                "lowPrice": price,
+                "volume": "0"
+            }
+        return None
 
     def get_active_symbols(self, quote_asset: str = "USDT") -> List[str]:
         """Get list of active symbols for a given quote asset."""
