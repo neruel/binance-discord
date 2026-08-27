@@ -113,7 +113,7 @@ async def show_market_selector(interaction: discord.Interaction, market_type: st
             assets.append({
                 "symbol": symbol,
                 "display": f"{name} ({display})",
-                "description": f"{name} BUSDT (토큰화 주식)"
+                "description": f"{name} USDT (토큰화 주식)"
             })
         title = "📈 토큰화 주식 종목 선택"
 
