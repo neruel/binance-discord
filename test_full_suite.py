@@ -14,15 +14,15 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from services.binance import BinanceAPI, BASE_URLS
+from services.binance import BinanceAPI, BINANCE_ENDPOINTS
 from bot.commands import format_price_str, MARKET_CRYPTO, MARKET_STOCK
 
 def test_endpoints_direct():
     print("==================================================")
     print("1. TESTING BINANCE API ENDPOINTS DIRECTLY")
     print("==================================================")
-    for endpoint in BASE_URLS:
-        url = f"{endpoint}/api/v3/ticker/24hr?symbol=BTCUSDT"
+    for endpoint in BINANCE_ENDPOINTS:
+        url = f"{endpoint}/ticker/24hr?symbol=BTCUSDT"
         req = urllib.request.Request(url, headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
